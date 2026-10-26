@@ -778,7 +778,59 @@ public class FurnitureTable extends JTable implements View, Printable {
       // Change printable column header renderer
       printableColumn.setHeaderRenderer(printableHeaderRenderer);
       printableColumnModel.addColumn(printableColumn);
-    }    
+    }
+
+    // Ensure the LEVEL column is included when printing homes with multiple viewable levels
+    boolean hasLevelColumn = false;
+    for (int columnIndex = 0, n = printableColumnModel.getColumnCount(); columnIndex < n; columnIndex++) {
+      if (HomePieceOfFurniture.SortableProperty.LEVEL.equals(printableColumnModel.getColumn(columnIndex).getIdentifier())) {
+        hasLevelColumn = true;
+        break;
+      }
+    }
+    Home home = null;
+    if (getModel() instanceof FurnitureTreeTableModel) {
+      home = ((FurnitureTreeTableModel)getModel()).getHome();
+    }
+    int viewableLevelsCount = 0;
+    if (home != null) {
+      for (Level level : home.getLevels()) {
+        if (level.isViewable()) {
+          viewableLevelsCount++;
+        }
+      }
+    }
+    if (!hasLevelColumn && viewableLevelsCount > 1) {
+      TableColumn levelTableColumn = null;
+      if (columnModel instanceof FurnitureTableColumnModel) {
+        levelTableColumn = ((FurnitureTableColumnModel)columnModel)
+            .getAvailableColumn(HomePieceOfFurniture.SortableProperty.LEVEL);
+      }
+      if (levelTableColumn != null) {
+        final TableColumn finalLevelColumn = levelTableColumn;
+        TableColumn printableColumn = new TableColumn();
+        printableColumn.setIdentifier(finalLevelColumn.getIdentifier());
+        printableColumn.setHeaderValue(finalLevelColumn.getHeaderValue());
+        TableCellRenderer printableCellRenderer = new TableCellRenderer() {
+            public Component getTableCellRendererComponent(JTable table, Object value, 
+                                   boolean isSelected, boolean hasFocus, int row, int column) {
+              TableCellRenderer cellRenderer = finalLevelColumn.getCellRenderer();
+              Component rendererComponent = cellRenderer.getTableCellRendererComponent(table, value, 
+                  isSelected, hasFocus, row, column);
+              if (rendererComponent instanceof JCheckBox) {
+                rendererComponent = defaultRenderer.getTableCellRendererComponent(table, 
+                    ((JCheckBox)rendererComponent).isSelected() ? "x" : "", false, false, row, column);
+              }
+              rendererComponent.setBackground(Color.WHITE);
+              rendererComponent.setForeground(Color.BLACK);
+              return rendererComponent;
+            }
+          };
+        printableColumn.setCellRenderer(printableCellRenderer);
+        printableColumn.setHeaderRenderer(printableHeaderRenderer);
+        printableColumnModel.addColumn(printableColumn);
+      }
+    }
     return print(g, pageFormat, pageIndex, printableColumnModel, Color.BLACK);
   }
 
@@ -1033,6 +1085,10 @@ public class FurnitureTable extends JTable implements View, Printable {
         tableColumn.setHeaderRenderer(headerRenderer);
         this.availableColumns.put(columnProperty, tableColumn);
       }
+    }
+
+    public TableColumn getAvailableColumn(HomePieceOfFurniture.SortableProperty property) {
+      return this.availableColumns.get(property);
     }
 
     /**
@@ -2014,6 +2070,10 @@ public class FurnitureTable extends JTable implements View, Printable {
       this.childFurnitureCache = new HashMap<Object, List<HomePieceOfFurniture>>();
       addHomeListener(home);
       filterAndSortFurniture();
+    }
+
+    public Home getHome() {
+      return this.home;
     }
 
     private void addHomeListener(final Home home) {
