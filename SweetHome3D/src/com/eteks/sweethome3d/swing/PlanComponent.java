@@ -2006,8 +2006,51 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
   /**
    * Prints this component plan at the scale given in the home print attributes or at a scale 
    * that makes it fill <code>pageFormat</code> imageable size if this attribute is <code>null</code>.
+   * When the home contains multiple viewable levels, each level is printed on its own page
+   * in the home's level order. The selected level is always restored after printing.
    */
   public int print(Graphics g, PageFormat pageFormat, int pageIndex) {
+    // Collect viewable levels
+    List<Level> viewableLevels = new ArrayList<Level>();
+    for (Level level : this.home.getLevels()) {
+      if (level.isViewable()) {
+        viewableLevels.add(level);
+      }
+    }
+    // Multi-level: each viewable level gets its own page
+    if (viewableLevels.size() > 1) {
+      if (pageIndex >= viewableLevels.size()) {
+        return NO_SUCH_PAGE;
+      }
+      Level originalLevel = this.home.getSelectedLevel();
+      Level levelToPrint = viewableLevels.get(pageIndex);
+      int result;
+      try {
+        // Temporarily switch to the level we want to print
+        this.home.setSelectedLevel(levelToPrint);
+        // Invalidate the cached furniture list so paintHomeItems uses the new selected level
+        this.sortedLevelFurniture = null;
+        // Print this single level as page 0
+        result = printSingleLevelPage(g, pageFormat, 0);
+      } catch (Exception ex) {
+        result = NO_SUCH_PAGE;
+      } finally {
+        // Always restore the original level and invalidate cache again
+        this.home.setSelectedLevel(originalLevel);
+        this.sortedLevelFurniture = null;
+      }
+      return result;
+    }
+
+    // Single level (or no levels) — original behaviour
+    return printSingleLevelPage(g, pageFormat, pageIndex);
+  }
+
+  /**
+   * Prints the plan for the currently selected level at the given page index.
+   * This contains the original single-level printing logic.
+   */
+  private int printSingleLevelPage(Graphics g, PageFormat pageFormat, int pageIndex) {
     List<Selectable> printedItems = getPaintedItems(); 
     Rectangle2D printedItemBounds = getItemsBounds(g, printedItems);
     if (printedItemBounds != null) {
